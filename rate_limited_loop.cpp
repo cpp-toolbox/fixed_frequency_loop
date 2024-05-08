@@ -26,6 +26,7 @@ void RateLimitedLoop::start(double update_rate_hz, const std::function<void(doub
             std::chrono::time_point<std::chrono::steady_clock, std::chrono::duration<double>> current_time =
                 std::chrono::steady_clock::now();
 
+            this->stopwatch.press();
             std::chrono::duration<double> delta = current_time - previous_time;
 
             rate_limited_func(delta.count());

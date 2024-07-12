@@ -1,0 +1,3 @@
+[submodule "stopwatch"]
+	path = stopwatch
+	url = git@github.com:cpp-toolbox/stopwatch.git

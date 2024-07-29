@@ -7,6 +7,8 @@
  *
  * \note you probably want to run this in it's own thread so the sleep doesn't
  * pause your whole program
+ *
+ * \author cuppajoeman
  */
 
 void FixedFrequencyLoop::start(double update_rate_hz, const std::function<void(double)> &rate_limited_func, const std::function<bool()> &termination_condition_func) {

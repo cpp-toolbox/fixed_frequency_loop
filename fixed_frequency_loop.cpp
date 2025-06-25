@@ -13,8 +13,12 @@
  */
 
 void FixedFrequencyLoop::start(double update_rate_hz, const std::function<void(double)> &rate_limited_func,
-                               const std::function<bool()> &termination_condition_func, bool logging) {
-    const std::chrono::duration<double> period(1.0 / update_rate_hz);
+                               const std::function<bool()> &termination_condition_func,
+                               std::function<void(IterationStats)> loop_stats_function) {
+
+    constexpr std::size_t max_history_size = 500; // Adjust as needed
+
+    std::chrono::duration<double> period(1.0 / update_rate_hz);
 
     auto loop_start_time = std::chrono::steady_clock::now();
     auto time_at_start_of_last_iteration = loop_start_time;
@@ -23,56 +27,69 @@ void FixedFrequencyLoop::start(double update_rate_hz, const std::function<void(d
     int count = 0;
 
     while (!termination_condition_func()) {
+
+        // NOTE: reocmputing this every time in case update rate changes, in general its over doing it a lot
+        period = std::chrono::duration<double>(1.0 / update_rate_hz);
+
         auto current_time = std::chrono::steady_clock::now();
         auto elapsed = current_time - time_at_start_of_last_iteration;
         time_at_start_of_last_iteration = current_time;
 
         double measured_period = std::chrono::duration<double>(elapsed).count();
-        double measured_period_delta = measured_period - period.count(); // Difference from expected period
+        double measured_period_delta = measured_period - period.count();
 
         total_time += measured_period;
         ++count;
 
         rate_limited_func(measured_period);
 
-        // Populate the iteration_stats_history with the current stats
         IterationStats stats;
         stats.time_at_start_of_iteration = std::chrono::duration<double>(current_time - loop_start_time).count();
         stats.measured_period = measured_period;
-        stats.requested_period = period.count();             // Set the requested period (target period)
-        stats.measured_period_delta = measured_period_delta; // Store the measured period delta
+        stats.measured_frequency_hz = 1 / stats.measured_period;
+        stats.requested_period = period.count();
+        stats.measured_period_delta_wrt_requested_period = measured_period_delta;
         stats.sleeping_until = stats.time_at_start_of_iteration + period.count() * count;
-        iteration_stats_history.push_back(stats); // Add to history
 
-        if (logging) {
-            // Log each iteration's stats
-            std::cout << stats << std::endl;
-
-            // Calculate and log average stats if logging is enabled
-            if (iteration_stats_history.size() > 1) {
-                double total_measured_period = 0.0;
-                double total_measured_period_delta = 0.0;
-                for (const auto &iter_stats : iteration_stats_history) {
-                    total_measured_period += iter_stats.measured_period;
-                    total_measured_period_delta += iter_stats.measured_period_delta;
-                }
-
-                double avg_measured_period = total_measured_period / iteration_stats_history.size();
-                double avg_measured_period_delta = total_measured_period_delta / iteration_stats_history.size();
-
-                std::cout << "Average Measured Period: " << avg_measured_period << " s\n";
-                std::cout << "Average Measured Period Delta: " << avg_measured_period_delta << " s\n";
-            }
+        if (iteration_stats_history.size() >= max_history_size) {
+            iteration_stats_history.pop_front(); // Assuming it's a deque or similar
         }
+        iteration_stats_history.push_back(stats);
 
-        // But the idea with sleep_until is that if you do sleep_until(start_ts + interval * i); you'll always schedule
-        // the next interval for the correct time you won't get a cascading error building up
-        std::this_thread::sleep_until(loop_start_time + period * (count));
+        loop_stats_function(get_average_loop_stats());
+
+        if (rate_limiter_enabled)
+            std::this_thread::sleep_until(loop_start_time + period * count);
+    }
+}
+
+IterationStats FixedFrequencyLoop::get_average_loop_stats() {
+    IterationStats avg_stats{};
+
+    if (iteration_stats_history.empty())
+        return avg_stats;
+
+    double total_measured_period = 0.0;
+    double total_requested_period = 0.0;
+    double total_measured_period_delta = 0.0;
+    double total_time_at_start = 0.0;
+    double total_sleeping_until = 0.0;
+
+    for (const auto &stats : iteration_stats_history) {
+        total_measured_period += stats.measured_period;
+        total_requested_period += stats.requested_period;
+        total_measured_period_delta += stats.measured_period_delta_wrt_requested_period;
+        total_time_at_start += stats.time_at_start_of_iteration;
+        total_sleeping_until += stats.sleeping_until;
     }
 
-    // Optional: Print the average frequency and period after the loop ends
-    // double average_freq = count / total_time;
-    // double average_period = total_time / count;
-    // std::cout << "Average Frequency: " << average_freq << " Hz" << std::endl;
-    // std::cout << "Average Period: " << average_period << " seconds" << std::endl;
+    size_t count = iteration_stats_history.size();
+    avg_stats.measured_period = total_measured_period / count;
+    avg_stats.measured_frequency_hz = 1 / avg_stats.measured_period;
+    avg_stats.requested_period = total_requested_period / count;
+    avg_stats.measured_period_delta_wrt_requested_period = total_measured_period_delta / count;
+    avg_stats.time_at_start_of_iteration = total_time_at_start / count;
+    avg_stats.sleeping_until = total_sleeping_until / count;
+
+    return avg_stats;
 }

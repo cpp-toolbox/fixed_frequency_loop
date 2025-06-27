@@ -12,7 +12,7 @@
  * \author cuppajoeman
  */
 
-void FixedFrequencyLoop::start(double update_rate_hz, const std::function<void(double)> &rate_limited_func,
+void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_func,
                                const std::function<bool()> &termination_condition_func,
                                std::function<void(IterationStats)> loop_stats_function) {
 

@@ -29,19 +29,16 @@ class IterationStats {
 class FixedFrequencyLoop {
   public:
     double update_rate_hz;
-    FixedFrequencyLoop(double update_rate_hz) : update_rate_hz(update_rate_hz) {};
+    FixedFrequencyLoop(double update_rate_hz = 60) : update_rate_hz(update_rate_hz), iteration_stats_history(1000) {};
 
     // NOTE: this generalizes a while loop that runs at a fixed frequency, addtionally if you want to know about the
     // statistics of the loop you can provide a loop stats function which will receive some averaged iteration stats on
     // every tick
     void start(
-        double update_rate_hz, const std::function<void(double)> &rate_limited_func,
-        const std::function<bool()> &termination_condition_func,
+        const std::function<void(double)> &rate_limited_func, const std::function<bool()> &termination_condition_func,
         std::function<void(IterationStats)> loop_stats_function = [](IterationStats is) {});
 
     std::deque<IterationStats> iteration_stats_history;
-
-    FixedFrequencyLoop() : iteration_stats_history(1000) {};
 
     IterationStats get_average_loop_stats();
 

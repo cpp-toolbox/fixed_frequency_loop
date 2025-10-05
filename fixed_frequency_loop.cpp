@@ -28,7 +28,7 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
 
     while (!termination_condition_func()) {
 
-        // NOTE: reocmputing this every time in case update rate changes, in general its over doing it a lot
+        // NOTE: recomputing this every time in case update rate changes, in general its over doing it a lot
         period = std::chrono::duration<double>(1.0 / update_rate_hz);
 
         auto current_time = std::chrono::steady_clock::now();

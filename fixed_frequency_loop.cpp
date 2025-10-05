@@ -52,7 +52,7 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
         stats.sleeping_until = stats.time_at_start_of_iteration + period.count() * count;
 
         if (iteration_stats_history.size() >= max_history_size) {
-            iteration_stats_history.pop_front(); // Assuming it's a deque or similar
+            iteration_stats_history.pop_front();
         }
         iteration_stats_history.push_back(stats);
 

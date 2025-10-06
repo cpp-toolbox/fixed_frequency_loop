@@ -18,7 +18,7 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
 
     constexpr std::size_t max_history_size = 500; // Adjust as needed
 
-    std::chrono::duration<double> period(1.0 / update_rate_hz);
+    std::chrono::duration<double> period(1.0 / max_update_rate_hz);
 
     auto loop_start_time = std::chrono::steady_clock::now();
     auto time_at_start_of_last_iteration = loop_start_time;
@@ -29,7 +29,7 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
     while (!termination_condition_func()) {
 
         // NOTE: recomputing this every time in case update rate changes, in general its over doing it a lot
-        period = std::chrono::duration<double>(1.0 / update_rate_hz);
+        period = std::chrono::duration<double>(1.0 / max_update_rate_hz);
 
         auto current_time = std::chrono::steady_clock::now();
         auto elapsed = current_time - time_at_start_of_last_iteration;

@@ -28,8 +28,9 @@ class IterationStats {
 
 class FixedFrequencyLoop {
   public:
-    double update_rate_hz;
-    FixedFrequencyLoop(double update_rate_hz = 60) : update_rate_hz(update_rate_hz), iteration_stats_history(1000) {};
+    double max_update_rate_hz;
+    FixedFrequencyLoop(double max_update_rate_hz = 60)
+        : max_update_rate_hz(max_update_rate_hz), iteration_stats_history(1000) {};
 
     // NOTE: this generalizes a while loop that runs at a fixed frequency, addtionally if you want to know about the
     // statistics of the loop you can provide a loop stats function which will receive some averaged iteration stats on
@@ -45,6 +46,7 @@ class FixedFrequencyLoop {
     // NOTE: we allow the user to disable the rate limiting if they want
     bool rate_limiter_enabled = true;
 
+    // NOTE: this is unused
     Stopwatch stopwatch;
 };
 

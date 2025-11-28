@@ -26,7 +26,11 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
     double total_time = 0.0;
     int count = 0;
 
-    while (!termination_condition_func()) {
+    bool should_keep_running = true;
+
+    while (should_keep_running) {
+
+        LogSection _(global_logger, "ffl while loop", logging_enabled);
 
         // NOTE: recomputing this every time in case update rate changes, in general its over doing it a lot
         period = std::chrono::duration<double>(1.0 / max_update_rate_hz);
@@ -58,8 +62,12 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
 
         loop_stats_function(get_average_loop_stats());
 
-        if (rate_limiter_enabled)
+        if (rate_limiter_enabled) {
+            LogSection _(global_logger, "sleep", logging_enabled);
             std::this_thread::sleep_until(loop_start_time + period * count);
+        }
+        should_keep_running = !termination_condition_func();
+        iteration_count++;
     }
 }
 

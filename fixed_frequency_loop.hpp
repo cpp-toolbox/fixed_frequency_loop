@@ -32,6 +32,9 @@ class FixedFrequencyLoop {
     FixedFrequencyLoop(double max_update_rate_hz = 60)
         : max_update_rate_hz(max_update_rate_hz), iteration_stats_history(1000) {};
 
+    bool logging_enabled = false;
+    unsigned int iteration_count = 0;
+
     // NOTE: this generalizes a while loop that runs at a fixed frequency, addtionally if you want to know about the
     // statistics of the loop you can provide a loop stats function which will receive some averaged iteration stats on
     // every tick

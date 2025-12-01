@@ -45,6 +45,7 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
         total_time += measured_period;
         ++count;
 
+        // TODO: should we force measured_period here?
         rate_limited_func(measured_period);
 
         IterationStats stats;

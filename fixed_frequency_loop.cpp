@@ -54,7 +54,7 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
 
         // TODO: should we force measured_period here?
         rate_limited_func(measured_period);
-        average_fps.add_sample(measured_period);
+        average_fps.add_sample(1.0 / measured_period);
 
         if (loop_stats_function.has_value()) {
             // NOTE: i think a lot of this is deprecated

@@ -18,10 +18,13 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
 
     constexpr std::size_t max_history_size = 500; // Adjust as needed
 
-    std::chrono::duration<double> period(1.0 / max_update_rate_hz);
     // NOTE: os sleep precision is much worse than one nanosecond, therefore we don't even care about fractional
     // nanoseconds, and so we can do this where this is duration of an unsigned int number of nanoseconds
-    // auto period_ns = std::chrono::nanoseconds{static_cast<long long>(1'000'000'000.0 / max_update_rate_hz)};
+    // NOTE: originally we used this:
+    // std::chrono::duration<double> period(1.0 / max_update_rate_hz);
+    // but after running a comparison test I determined that this one was slightly better and I believe it's due to
+    // drift that occurs when you use floating point vs this which is an integer
+    auto period_ns = std::chrono::nanoseconds{static_cast<long long>(1'000'000'000.0 / max_update_rate_hz)};
 
     auto loop_start_time = std::chrono::steady_clock::now();
     auto time_at_start_of_last_iteration = loop_start_time;
@@ -36,29 +39,32 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
         GlobalLogSection _("ffl while loop", logging_enabled);
 
         // NOTE: recomputing this every time in case update rate changes, in general its over doing it a lot
-        period = std::chrono::duration<double>(1.0 / max_update_rate_hz);
+        period_ns = std::chrono::nanoseconds{static_cast<long long>(1'000'000'000.0 / max_update_rate_hz)};
+        auto period_sec = std::chrono::duration<double>(period_ns);
 
         auto current_time = std::chrono::steady_clock::now();
         auto elapsed = current_time - time_at_start_of_last_iteration;
         time_at_start_of_last_iteration = current_time;
 
         double measured_period = std::chrono::duration<double>(elapsed).count();
-        double measured_period_delta = measured_period - period.count();
+        double measured_period_delta = measured_period - period_sec.count();
 
         total_time += measured_period;
         ++count;
 
         // TODO: should we force measured_period here?
         rate_limited_func(measured_period);
+        average_fps.add_sample(measured_period);
 
         if (loop_stats_function.has_value()) {
+            // NOTE: i think a lot of this is deprecated
             IterationStats stats;
             stats.time_at_start_of_iteration = std::chrono::duration<double>(current_time - loop_start_time).count();
             stats.measured_period = measured_period;
             stats.measured_frequency_hz = 1 / stats.measured_period;
-            stats.requested_period = period.count();
+            stats.requested_period = period_sec.count();
             stats.measured_period_delta_wrt_requested_period = measured_period_delta;
-            stats.sleeping_until = stats.time_at_start_of_iteration + period.count() * count;
+            stats.sleeping_until = stats.time_at_start_of_iteration + period_sec.count() * count;
 
             if (iteration_stats_history.size() >= max_history_size) {
                 iteration_stats_history.pop_front();
@@ -70,7 +76,7 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
 
         if (rate_limiter_enabled) {
 
-            auto time_of_next_iteration = loop_start_time + period * count;
+            auto time_of_next_iteration = loop_start_time + period_ns * count;
 
             if (wait_strategy == WaitStrategy::sleep) {
                 GlobalLogSection _("sleep", logging_enabled);

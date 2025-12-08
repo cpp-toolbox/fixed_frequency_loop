@@ -51,6 +51,8 @@ class FixedFrequencyLoop {
                const std::function<bool()> &termination_condition_func,
                std::optional<std::function<void(IterationStats)>> loop_stats_function = std::nullopt);
 
+    math_utils::SimpleMovingAverage average_fps{100};
+
     std::deque<IterationStats> iteration_stats_history;
 
     IterationStats get_average_loop_stats();

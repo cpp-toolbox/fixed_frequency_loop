@@ -14,11 +14,14 @@
 
 void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_func,
                                const std::function<bool()> &termination_condition_func,
-                               std::function<void(IterationStats)> loop_stats_function) {
+                               std::optional<std::function<void(IterationStats)>> loop_stats_function) {
 
     constexpr std::size_t max_history_size = 500; // Adjust as needed
 
     std::chrono::duration<double> period(1.0 / max_update_rate_hz);
+    // NOTE: os sleep precision is much worse than one nanosecond, therefore we don't even care about fractional
+    // nanoseconds, and so we can do this where this is duration of an unsigned int number of nanoseconds
+    // auto period_ns = std::chrono::nanoseconds{static_cast<long long>(1'000'000'000.0 / max_update_rate_hz)};
 
     auto loop_start_time = std::chrono::steady_clock::now();
     auto time_at_start_of_last_iteration = loop_start_time;
@@ -48,24 +51,42 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
         // TODO: should we force measured_period here?
         rate_limited_func(measured_period);
 
-        IterationStats stats;
-        stats.time_at_start_of_iteration = std::chrono::duration<double>(current_time - loop_start_time).count();
-        stats.measured_period = measured_period;
-        stats.measured_frequency_hz = 1 / stats.measured_period;
-        stats.requested_period = period.count();
-        stats.measured_period_delta_wrt_requested_period = measured_period_delta;
-        stats.sleeping_until = stats.time_at_start_of_iteration + period.count() * count;
+        if (loop_stats_function.has_value()) {
+            IterationStats stats;
+            stats.time_at_start_of_iteration = std::chrono::duration<double>(current_time - loop_start_time).count();
+            stats.measured_period = measured_period;
+            stats.measured_frequency_hz = 1 / stats.measured_period;
+            stats.requested_period = period.count();
+            stats.measured_period_delta_wrt_requested_period = measured_period_delta;
+            stats.sleeping_until = stats.time_at_start_of_iteration + period.count() * count;
 
-        if (iteration_stats_history.size() >= max_history_size) {
-            iteration_stats_history.pop_front();
+            if (iteration_stats_history.size() >= max_history_size) {
+                iteration_stats_history.pop_front();
+            }
+            iteration_stats_history.push_back(stats);
+
+            (*loop_stats_function)(get_average_loop_stats());
         }
-        iteration_stats_history.push_back(stats);
-
-        loop_stats_function(get_average_loop_stats());
 
         if (rate_limiter_enabled) {
-            GlobalLogSection _("sleep", logging_enabled);
-            std::this_thread::sleep_until(loop_start_time + period * count);
+
+            auto time_of_next_iteration = loop_start_time + period * count;
+
+            if (wait_strategy == WaitStrategy::sleep) {
+                GlobalLogSection _("sleep", logging_enabled);
+
+                auto now = std::chrono::steady_clock::now();
+                if (time_of_next_iteration > now) {
+                    std::this_thread::sleep_until(time_of_next_iteration);
+                } // else we don't sleep because we don't need to.
+            }
+
+            if (wait_strategy == WaitStrategy::busy_wait) {
+                // GlobalLogSection _("busy waiting", logging_enabled);
+                while (std::chrono::steady_clock::now() < time_of_next_iteration) {
+                    std::this_thread::yield();
+                }
+            }
         }
         should_keep_running = !termination_condition_func();
         iteration_count++;

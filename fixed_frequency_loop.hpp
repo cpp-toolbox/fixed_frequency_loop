@@ -3,6 +3,7 @@
 
 #include <deque>
 #include <functional>
+#include <optional>
 #include <ostream>
 #include "sbpt_generated_includes.hpp"
 
@@ -28,9 +29,17 @@ class IterationStats {
 
 class FixedFrequencyLoop {
   public:
+    enum class WaitStrategy {
+        sleep,
+        busy_wait,
+        // hybrid, // sleep until close to target, then spin (not implemented yet)
+    };
+
+    WaitStrategy wait_strategy;
+
     double max_update_rate_hz;
-    FixedFrequencyLoop(double max_update_rate_hz = 60)
-        : max_update_rate_hz(max_update_rate_hz), iteration_stats_history(1000) {};
+    FixedFrequencyLoop(double max_update_rate_hz = 60, WaitStrategy wait_strategy = WaitStrategy::sleep)
+        : max_update_rate_hz(max_update_rate_hz), wait_strategy(wait_strategy), iteration_stats_history(1000) {};
 
     bool logging_enabled = false;
     unsigned int iteration_count = 0;
@@ -38,9 +47,9 @@ class FixedFrequencyLoop {
     // NOTE: this generalizes a while loop that runs at a fixed frequency, addtionally if you want to know about the
     // statistics of the loop you can provide a loop stats function which will receive some averaged iteration stats on
     // every tick
-    void start(
-        const std::function<void(double)> &rate_limited_func, const std::function<bool()> &termination_condition_func,
-        std::function<void(IterationStats)> loop_stats_function = [](IterationStats is) {});
+    void start(const std::function<void(double)> &rate_limited_func,
+               const std::function<bool()> &termination_condition_func,
+               std::optional<std::function<void(IterationStats)>> loop_stats_function = std::nullopt);
 
     std::deque<IterationStats> iteration_stats_history;
 

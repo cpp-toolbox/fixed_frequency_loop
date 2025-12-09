@@ -35,8 +35,8 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
     bool should_keep_running = true;
 
     while (should_keep_running) {
-
         GlobalLogSection _("ffl while loop", logging_enabled);
+        global_logger->info("iteration number: {}", count);
 
         // NOTE: recomputing this every time in case update rate changes, in general its over doing it a lot
         period_ns = std::chrono::nanoseconds{static_cast<long long>(1'000'000'000.0 / max_update_rate_hz)};

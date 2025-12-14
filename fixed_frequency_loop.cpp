@@ -26,17 +26,16 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
     // drift that occurs when you use floating point vs this which is an integer
     auto period_ns = std::chrono::nanoseconds{static_cast<long long>(1'000'000'000.0 / max_update_rate_hz)};
 
-    auto loop_start_time = std::chrono::steady_clock::now();
-    auto time_at_start_of_last_iteration = loop_start_time;
+    loop_start_time = std::chrono::steady_clock::now();
+    time_at_start_of_last_iteration = loop_start_time;
 
     double total_time = 0.0;
-    int count = 0;
 
     bool should_keep_running = true;
 
     while (should_keep_running) {
         GlobalLogSection _("ffl while loop", logging_enabled);
-        global_logger->info("iteration number: {}", count);
+        global_logger->info("iteration number: {}", iteration_count);
 
         // NOTE: recomputing this every time in case update rate changes, in general its over doing it a lot
         period_ns = std::chrono::nanoseconds{static_cast<long long>(1'000'000'000.0 / max_update_rate_hz)};
@@ -50,7 +49,7 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
         double measured_period_delta = measured_period - period_sec.count();
 
         total_time += measured_period;
-        ++count;
+        ++num_periods_for_next_iteration;
 
         // TODO: should we force measured_period here?
         rate_limited_func(measured_period);
@@ -64,7 +63,8 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
             stats.measured_frequency_hz = 1 / stats.measured_period;
             stats.requested_period = period_sec.count();
             stats.measured_period_delta_wrt_requested_period = measured_period_delta;
-            stats.sleeping_until = stats.time_at_start_of_iteration + period_sec.count() * count;
+            stats.sleeping_until =
+                stats.time_at_start_of_iteration + period_sec.count() * num_periods_for_next_iteration;
 
             if (iteration_stats_history.size() >= max_history_size) {
                 iteration_stats_history.pop_front();
@@ -74,9 +74,10 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
             (*loop_stats_function)(get_average_loop_stats());
         }
 
-        if (rate_limiter_enabled) {
+        if (operation_mode == OperationMode::fixed_frequency) {
+            auto time_of_next_iteration = loop_start_time + period_ns * num_periods_for_next_iteration;
 
-            auto time_of_next_iteration = loop_start_time + period_ns * count;
+            // the following code waits until the next time we shoudl tick
 
             if (wait_strategy == WaitStrategy::sleep) {
                 GlobalLogSection _("sleep", logging_enabled);
@@ -94,9 +95,16 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
                 }
             }
         }
+
         should_keep_running = !termination_condition_func();
         iteration_count++;
     }
+}
+
+void FixedFrequencyLoop::set_max_update_rate_hz(double max_update_rate_hz) {
+    // TODO: maybe create a reset function?
+    this->max_update_rate_hz = max_update_rate_hz;
+    reset();
 }
 
 IterationStats FixedFrequencyLoop::get_average_loop_stats() {
@@ -128,4 +136,10 @@ IterationStats FixedFrequencyLoop::get_average_loop_stats() {
     avg_stats.sleeping_until = total_sleeping_until / count;
 
     return avg_stats;
+}
+
+void FixedFrequencyLoop ::reset() {
+    loop_start_time = std::chrono::steady_clock::now();
+    time_at_start_of_last_iteration = std::chrono::steady_clock::now();
+    num_periods_for_next_iteration = 0;
 }

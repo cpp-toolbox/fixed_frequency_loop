@@ -5,6 +5,7 @@
 #include <functional>
 #include <optional>
 #include <ostream>
+#include <chrono>
 #include "sbpt_generated_includes.hpp"
 
 class IterationStats {
@@ -28,20 +29,38 @@ class IterationStats {
 };
 
 class FixedFrequencyLoop {
-  public:
+  public: // member variables
+    enum class OperationMode {
+        fixed_frequency,
+        as_fast_as_possible,
+    };
+
     enum class WaitStrategy {
         sleep,
         busy_wait,
         // hybrid, // sleep until close to target, then spin (not implemented yet)
     };
 
+    OperationMode operation_mode;
     WaitStrategy wait_strategy;
+    bool logging_enabled = false;
+
+    // NOTE: we allow the user to disable the rate limiting if they want
+    bool rate_limiter_enabled = true;
+
+  private: // member variables
+    std::chrono::time_point<std::chrono::steady_clock> loop_start_time;
+    std::chrono::time_point<std::chrono::steady_clock> time_at_start_of_last_iteration;
+    unsigned int num_periods_for_next_iteration = 0;
 
     double max_update_rate_hz;
-    FixedFrequencyLoop(double max_update_rate_hz = 60, WaitStrategy wait_strategy = WaitStrategy::sleep)
-        : max_update_rate_hz(max_update_rate_hz), wait_strategy(wait_strategy), iteration_stats_history(1000) {};
 
-    bool logging_enabled = false;
+  public: // member functions
+    FixedFrequencyLoop(double max_update_rate_hz = 60, WaitStrategy wait_strategy = WaitStrategy::sleep,
+                       OperationMode operation_mode = OperationMode::fixed_frequency)
+        : max_update_rate_hz(max_update_rate_hz), wait_strategy(wait_strategy), operation_mode(operation_mode),
+          iteration_stats_history(1000) {};
+
     unsigned int iteration_count = 0;
 
     // NOTE: this generalizes a while loop that runs at a fixed frequency, addtionally if you want to know about the
@@ -55,13 +74,16 @@ class FixedFrequencyLoop {
 
     std::deque<IterationStats> iteration_stats_history;
 
+    void set_max_update_rate_hz(double max_update_rate_hz);
+    void set_operation_mode(OperationMode operation_mode) {
+        this->operation_mode = operation_mode;
+        reset();
+    }
+
     IterationStats get_average_loop_stats();
 
-    // NOTE: we allow the user to disable the rate limiting if they want
-    bool rate_limiter_enabled = true;
-
-    // NOTE: this is unused
-    Stopwatch stopwatch;
+  private: // member functions
+    void reset();
 };
 
 #endif // RATE_LIMITED_LOOP_HPP

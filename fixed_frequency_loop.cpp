@@ -34,7 +34,7 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
     bool should_keep_running = true;
 
     while (should_keep_running) {
-        GlobalLogSection _("ffl while loop", logging_enabled);
+        GlobalLogSection _("ffl while loop", log_mode);
         global_logger->info("iteration number: {}", iteration_count);
 
         // NOTE: recomputing this every time in case update rate changes, in general its over doing it a lot
@@ -80,7 +80,7 @@ void FixedFrequencyLoop::start(const std::function<void(double)> &rate_limited_f
             // the following code waits until the next time we shoudl tick
 
             if (wait_strategy == WaitStrategy::sleep) {
-                GlobalLogSection _("sleep", logging_enabled);
+                GlobalLogSection _("sleep", log_mode);
 
                 auto now = std::chrono::steady_clock::now();
                 if (time_of_next_iteration > now) {

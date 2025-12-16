@@ -43,7 +43,7 @@ class FixedFrequencyLoop {
 
     OperationMode operation_mode;
     WaitStrategy wait_strategy;
-    bool logging_enabled = false;
+    LogSection::LogMode log_mode = LogSection::LogMode::disable;
 
     // NOTE: we allow the user to disable the rate limiting if they want
     bool rate_limiter_enabled = true;
